@@ -79,15 +79,15 @@ class Game(Node):
         self.send_set_pen_computer_request()
         self.send_set_pen_player_request()
         
-        # RUN CALLBACK FUNCTION (GAME LOOP)
-        self.timer = self.create_timer(1 / 30, self.ball_pose_pub_callback)
-
+        # RUN GAME LOOP FUNCTION
+        self.timer = self.create_timer(1 / 30, self.game_loop)
+        
         # PROMPT USER
         self.get_logger().info('Game has been started.')
 
 
     # GAME LOOP FUNCTION
-    def ball_pose_pub_callback(self):        
+    def game_loop(self):
         distance_from_computer = sqrt(pow(self.ball_pose.x - self.computer_pose.x, 2) + pow(self.ball_pose.y - self.computer_pose.y, 2))
         distance_from_player = sqrt(pow(self.ball_pose.x - self.player_pose.x, 2) + pow(self.ball_pose.y - self.player_pose.y, 2))
         
@@ -98,7 +98,7 @@ class Game(Node):
             self.computer_pose_pub.publish(computer_msg)
         elif self.ball_pose.y < self.computer_pose.y:
             computer_msg = Twist()
-            computer_msg.linear.y = - 2.0
+            computer_msg.linear.y = -2.0
             self.computer_pose_pub.publish(computer_msg)
         
         # BOUNCE FROM COMPUTER TURTLE
@@ -107,21 +107,21 @@ class Game(Node):
         
         # BOUNCE FROM PLAYER TURTLE
         if distance_from_player < 0.5 and self.player_pose.x > self.ball_pose.x:
-            self.vel_x = - abs(self.vel_x)
+            self.vel_x = -abs(self.vel_x)
             
         # BOUNCE FROM TOP/BOTTOM WALL
         if self.ball_pose.y > 10.5:
-            self.vel_y = - abs(self.vel_y)
+            self.vel_y = -abs(self.vel_y)
         elif self.ball_pose.y < 1.0:
             self.vel_y = abs(self.vel_y)
         
         # DETECT SCORING
         if self.ball_pose.x > 10.5:
-            self.send_teleport_turtle_request()
             self.get_logger().info('Computer scored.')
-        elif self.ball_pose.x < 1.0:
             self.send_teleport_turtle_request()
+        elif self.ball_pose.x < 1.0:
             self.get_logger().info('Player scored.')
+            self.send_teleport_turtle_request()
         
         # MOVE BALL
         ball_msg = Twist()      
