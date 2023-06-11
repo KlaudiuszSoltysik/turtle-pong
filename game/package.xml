@@ -9,6 +9,10 @@
 
   <build_depend>turtlesim</build_depend>
 
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>interfaces</exec_depend>
+  <exec_depend>pynput</exec_depend>
+
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

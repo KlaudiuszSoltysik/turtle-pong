@@ -1,9 +1,11 @@
 #!/usr/bin/python
 import rclpy
 from rclpy.node import Node
+from rclpy.action import ActionServer
 from turtlesim.srv import Spawn, TeleportAbsolute, SetPen
 from turtlesim.msg import Pose
 from geometry_msgs.msg import Twist
+from interfaces.msg import Move
 
 from math import pow, sqrt
 from random import randint
@@ -18,9 +20,13 @@ class Game(Node):
         self.vel_x = -2.0
         self.vel_y = randint(-200, 200)/100
         
+        self.computer_score = 0
+        self.player_score = 0
+        
         self.ball_pose = Pose()
         self.computer_pose = Pose()
         self.player_pose = Pose()
+        self.direction = Move()
 
         # CONNECT WITH SPAWN SERVICES
         self.spawn_cli = self.create_client(Spawn, 'spawn')
@@ -74,6 +80,10 @@ class Game(Node):
         self.computer_pose_pub = self.create_publisher(Twist, 'computer/cmd_vel', 10)
         self.player_pose_pub = self.create_publisher(Twist, 'player/cmd_vel', 10)
         
+        # CREATE SUBSCRIBER TO MOVE_PLAYER_TURTLE TOPIC
+        self.move_player_turtle_sub = self.create_subscription(Move, 'move_player_turtle', self.move_player_turtle_sub_callback, 10)
+        self.move_player_turtle_sub
+        
         # SWITCH OFF PENS
         self.send_set_pen_ball_request()
         self.send_set_pen_computer_request()
@@ -83,10 +93,10 @@ class Game(Node):
         self.timer = self.create_timer(1 / 30, self.game_loop)
         
         # PROMPT USER
+        self.get_logger().info('----------------------')
         self.get_logger().info('Game has been started.')
 
 
-    # GAME LOOP FUNCTION
     def game_loop(self):
         distance_from_computer = sqrt(pow(self.ball_pose.x - self.computer_pose.x, 2) + pow(self.ball_pose.y - self.computer_pose.y, 2))
         distance_from_player = sqrt(pow(self.ball_pose.x - self.player_pose.x, 2) + pow(self.ball_pose.y - self.player_pose.y, 2))
@@ -100,13 +110,21 @@ class Game(Node):
             computer_msg = Twist()
             computer_msg.linear.y = -2.0
             self.computer_pose_pub.publish(computer_msg)
+            
+        # MOVE PLAYER TURTLE
+        if self.direction == 1:
+            player_msg = Twist()
+            player_msg.linear.y = 2.0
+            self.player_pose_pub.publish(player_msg)
+        elif self.direction == -1:
+            player_msg = Twist()
+            player_msg.linear.y = -2.0
+            self.player_pose_pub.publish(player_msg)
         
-        # BOUNCE FROM COMPUTER TURTLE
+        # BOUNCE FROM TURTLES
         if distance_from_computer < 0.5 and self.computer_pose.x < self.ball_pose.x:
             self.vel_x = abs(self.vel_x)
-        
-        # BOUNCE FROM PLAYER TURTLE
-        if distance_from_player < 0.5 and self.player_pose.x > self.ball_pose.x:
+        elif distance_from_player < 0.5 and self.player_pose.x > self.ball_pose.x:
             self.vel_x = -abs(self.vel_x)
             
         # BOUNCE FROM TOP/BOTTOM WALL
@@ -117,10 +135,16 @@ class Game(Node):
         
         # DETECT SCORING
         if self.ball_pose.x > 10.5:
+            self.computer_score += 1
+            self.get_logger().info('----------------------')
             self.get_logger().info('Computer scored.')
+            self.get_logger().info('COMPUTER %s : %s PLAYER' % (self.computer_score, self.player_score))
             self.send_teleport_turtle_request()
         elif self.ball_pose.x < 1.0:
+            self.player_score += 1
+            self.get_logger().info('----------------------')
             self.get_logger().info('Player scored.')
+            self.get_logger().info('COMPUTER %s : %s PLAYER' % (self.computer_score, self.player_score))
             self.send_teleport_turtle_request()
         
         # MOVE BALL
@@ -136,10 +160,8 @@ class Game(Node):
         self.spawn_turtle_request.theta = 0.0
         self.spawn_turtle_request.name = 'computer'
 
-        self.future1 = self.spawn_cli.call_async(self.spawn_turtle_request)
-        rclpy.spin_until_future_complete(self, self.future1)
-
-        return self.future1.result()
+        future = self.spawn_cli.call_async(self.spawn_turtle_request)
+        rclpy.spin_until_future_complete(self, future)
 
 
     def send_spawn_turtle_player_request(self):
@@ -148,19 +170,15 @@ class Game(Node):
         self.spawn_turtle_request.theta = 3.14
         self.spawn_turtle_request.name = 'player'
 
-        self.future2 = self.spawn_cli.call_async(self.spawn_turtle_request)
-        rclpy.spin_until_future_complete(self, self.future2)
-
-        return self.future2.result()
+        future = self.spawn_cli.call_async(self.spawn_turtle_request)
+        rclpy.spin_until_future_complete(self, future)
 
 
     def send_set_pen_ball_request(self):
         self.set_pen_request.off = 1
 
-        self.future4 = self.set_pen_ball_cli.call_async(self.set_pen_request)
-        rclpy.spin_until_future_complete(self, self.future4)
-
-        return self.future4.result()
+        future = self.set_pen_ball_cli.call_async(self.set_pen_request)
+        rclpy.spin_until_future_complete(self, future)
 
 
     def send_set_pen_computer_request(self):
@@ -184,11 +202,8 @@ class Game(Node):
     def send_teleport_turtle_request(self):
         self.teleport_turtle_request.x = 5.5
         self.teleport_turtle_request.y = 5.5
-
-        self.future3 = self.teleport_cli.call_async(self.teleport_turtle_request)
-        rclpy.spin_until_future_complete(self, self.future3)
-
-        return self.future3.result()
+        
+        self.teleport_cli.call_async(self.teleport_turtle_request)
 
 
     def ball_pose_sub_callback(self, msg):
@@ -201,6 +216,10 @@ class Game(Node):
 
     def player_pose_sub_callback(self, msg):
         self.player_pose = msg
+
+
+    def move_player_turtle_sub_callback(self, msg):
+        self.direction = msg.direction
 
 
 def main(args=None):
