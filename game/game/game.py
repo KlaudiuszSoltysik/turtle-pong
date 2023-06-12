@@ -102,30 +102,47 @@ class Game(Node):
         distance_from_player = sqrt(pow(self.ball_pose.x - self.player_pose.x, 2) + pow(self.ball_pose.y - self.player_pose.y, 2))
         
         # COMPUTER TURTLE AI
+        computer_msg = Twist()
+        
         if self.ball_pose.y > self.computer_pose.y:
-            computer_msg = Twist()
             computer_msg.linear.y = 2.0
-            self.computer_pose_pub.publish(computer_msg)
         elif self.ball_pose.y < self.computer_pose.y:
-            computer_msg = Twist()
             computer_msg.linear.y = -2.0
-            self.computer_pose_pub.publish(computer_msg)
+            
+        self.computer_pose_pub.publish(computer_msg)
             
         # MOVE PLAYER TURTLE
-        if self.direction == 1:
-            player_msg = Twist()
+        player_msg = Twist()
+        
+        if self.direction == 0:
+            player_msg.linear.y = 0.0
+        elif self.direction == 1:
             player_msg.linear.y = 2.0
-            self.player_pose_pub.publish(player_msg)
         elif self.direction == -1:
-            player_msg = Twist()
             player_msg.linear.y = -2.0
-            self.player_pose_pub.publish(player_msg)
+            
+        if self.player_pose.y > 10.5 and player_msg.linear.y == -2.0:
+            player_msg.linear.y = 0.0
+        elif self.player_pose.y < 0.5 and player_msg.linear.y == 2.0:
+            player_msg.linear.y = 0.0
+        
+        self.player_pose_pub.publish(player_msg)
         
         # BOUNCE FROM TURTLES
         if distance_from_computer < 0.5 and self.computer_pose.x < self.ball_pose.x:
+            if computer_msg.linear.y == 2.0 and self.vel_y <= 1.5:
+                self.vel_y += 0.5
+            elif computer_msg.linear.y == -2.0 and self.vel_y >= -1.5:
+                self.vel_y -= 0.5
+                
             self.vel_x = abs(self.vel_x)
         elif distance_from_player < 0.5 and self.player_pose.x > self.ball_pose.x:
             self.vel_x = -abs(self.vel_x)
+            
+            if player_msg.linear.y == -2.0 and self.vel_y <= 1.5:
+                self.vel_y += 0.5
+            elif player_msg.linear.y == 2.0 and self.vel_y >= -1.5:
+                self.vel_y -= 0.5
             
         # BOUNCE FROM TOP/BOTTOM WALL
         if self.ball_pose.y > 10.5:
@@ -136,12 +153,14 @@ class Game(Node):
         # DETECT SCORING
         if self.ball_pose.x > 10.5:
             self.computer_score += 1
+            self.vel_x += 0.1
             self.get_logger().info('----------------------')
             self.get_logger().info('Computer scored.')
             self.get_logger().info('COMPUTER %s : %s PLAYER' % (self.computer_score, self.player_score))
             self.send_teleport_turtle_request()
         elif self.ball_pose.x < 1.0:
             self.player_score += 1
+            self.vel_x -= 0.1
             self.get_logger().info('----------------------')
             self.get_logger().info('Player scored.')
             self.get_logger().info('COMPUTER %s : %s PLAYER' % (self.computer_score, self.player_score))
